@@ -155,22 +155,6 @@ jobs:
           Write-Host "--- Bundled component report ---"
           Get-Content BUNDLED_COMPONENTS.txt
 
-      - name: Prepare standalone mode
-        if: steps.release.outputs.exists != 'true'
-        shell: pwsh
-        run: |
-          @'
-          from pathlib import Path
-
-          path = Path("app.pyw")
-          text = path.read_text(encoding="utf-8")
-          needle = "def _ensure_private_runtime() -> None:\n    if _running_in_private_env():"
-          replacement = "def _ensure_private_runtime() -> None:\n    if getattr(sys, \"frozen\", False):\n        return\n    if _running_in_private_env():"
-          if needle not in text:
-              raise SystemExit("Expected runtime bootstrap block was not found.")
-          path.write_text(text.replace(needle, replacement, 1), encoding="utf-8")
-          '@ | python -
-
       - name: Build standalone executable
         if: steps.release.outputs.exists != 'true'
         shell: pwsh

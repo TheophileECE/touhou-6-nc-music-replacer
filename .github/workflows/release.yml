@@ -232,9 +232,12 @@ jobs:
             "THIRD_PARTY_LICENSES.zip" `
             --clobber
 
+          $marker = "Legal, attribution and third-party license material is attached as THIRD_PARTY_NOTICES.md, BUNDLED_COMPONENTS.txt and THIRD_PARTY_LICENSES.zip."
           $body = gh release view $env:RELEASE_VERSION --json body --jq .body
-          if ($body -notmatch "THIRD_PARTY_NOTICES.md") {
-            $body = $body + "`n`nLegal, attribution and third-party license material is attached as THIRD_PARTY_NOTICES.md, BUNDLED_COMPONENTS.txt and THIRD_PARTY_LICENSES.zip."
-            Set-Content -Path EXISTING_RELEASE_NOTES.md -Value $body -Encoding utf8
-            gh release edit $env:RELEASE_VERSION --notes-file EXISTING_RELEASE_NOTES.md
+          $index = $body.IndexOf($marker)
+          if ($index -ge 0) {
+            $body = $body.Substring(0, $index).TrimEnd()
           }
+          $body = $body.TrimEnd() + "`n`n" + $marker
+          Set-Content -Path EXISTING_RELEASE_NOTES.md -Value $body -Encoding utf8
+          gh release edit $env:RELEASE_VERSION --notes-file EXISTING_RELEASE_NOTES.md

@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: Release version (for example v1.0.1)
+        description: Release version (for example v1.1.1)
         required: true
-        default: v1.0.0
+        default: v1.1.0
   push:
     branches:
       - main
@@ -18,7 +18,7 @@ jobs:
   build-release:
     runs-on: windows-latest
     env:
-      RELEASE_VERSION: ${{ github.event_name == 'workflow_dispatch' && inputs.version || 'v1.0.0' }}
+      RELEASE_VERSION: ${{ github.event_name == 'workflow_dispatch' && inputs.version || 'v1.1.0' }}
 
     steps:
       - name: Check out source
@@ -89,6 +89,11 @@ jobs:
           $hash = (Get-FileHash $exe -Algorithm SHA256).Hash
           @"
           Standalone Windows build. No Python installation is required.
+
+          New in v1.1.0:
+          - Separate New Classic OST and Classic OST selection.
+          - Correct loop metadata updates for both soundtrack banks.
+          - Improved Windows source launcher compatibility.
 
           FFmpeg and drag-and-drop support are bundled inside the executable.
 

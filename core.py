@@ -177,14 +177,20 @@ class LoopInfo:
 
 
 class PosStore:
-    def __init__(self, game_root: Path):
+    def __init__(self, game_root: Path, bank: str = "bgm"):
+        if bank not in {"bgm", "bgm2"}:
+            raise ToolError(f"Unsupported music bank: {bank}")
         self.game_root = game_root
-        self.bgm_dir = game_root / "data" / "bgm"
+        self.bank = bank
+        self.bgm_dir = game_root / "data" / bank
         self.md_path = game_root / "data" / "th06MD.dat"
         self.archive = _PkglArchive(self.md_path) if self.md_path.is_file() else None
 
+    def _pos_stem(self, track_stem: str) -> str:
+        return f"{track_stem}o" if self.bank == "bgm2" else track_stem
+
     def _loose_path(self, track_stem: str) -> Path:
-        return self.bgm_dir / f"{track_stem}.pos"
+        return self.bgm_dir / f"{self._pos_stem(track_stem)}.pos"
 
     def read(self, track_stem: str) -> LoopInfo:
         loose = self._loose_path(track_stem)
@@ -196,9 +202,10 @@ class PosStore:
             return LoopInfo(start, end, f"loose file: {loose}")
         if not self.archive:
             raise ToolError("Could not find data/th06MD.dat or a loose .pos file.")
-        entry = self.archive.find(f"{track_stem}.pos")
+        pos_name = f"{self._pos_stem(track_stem)}.pos"
+        entry = self.archive.find(pos_name)
         if entry is None:
-            raise ToolError(f"Could not find {track_stem}.pos inside th06MD.dat.")
+            raise ToolError(f"Could not find {pos_name} inside th06MD.dat.")
         blob = self.archive.read_uncompressed(entry)
         if len(blob) != 8:
             raise ToolError(f"{entry.name} is {len(blob)} bytes; expected the TH06 8-byte POS format.")
@@ -235,9 +242,10 @@ class PosStore:
             return
         if not self.archive:
             raise ToolError("No writable .pos location found.")
-        entry = self.archive.find(f"{track_stem}.pos")
+        pos_name = f"{self._pos_stem(track_stem)}.pos"
+        entry = self.archive.find(pos_name)
         if entry is None:
-            raise ToolError(f"Could not find {track_stem}.pos inside th06MD.dat.")
+            raise ToolError(f"Could not find {pos_name} inside th06MD.dat.")
         self.archive.write_uncompressed_same_size(entry, payload)
 
     def restore_original(self, track_stem: str) -> None:
@@ -250,10 +258,11 @@ class PosStore:
         if not self.archive or not archive_backup.is_file():
             raise ToolError(f"No original loop-metadata backup exists for {track_stem}.")
         original = _PkglArchive(archive_backup, seed_name=self.md_path.name)
-        original_entry = original.find(f"{track_stem}.pos")
-        current_entry = self.archive.find(f"{track_stem}.pos")
+        pos_name = f"{self._pos_stem(track_stem)}.pos"
+        original_entry = original.find(pos_name)
+        current_entry = self.archive.find(pos_name)
         if original_entry is None or current_entry is None:
-            raise ToolError(f"Could not restore {track_stem}.pos from the archive backup.")
+            raise ToolError(f"Could not restore {pos_name} from the archive backup.")
         payload = original.read_uncompressed(original_entry)
         if len(payload) != 8:
             raise ToolError(f"Backup {original_entry.name} is not an 8-byte TH06 POS entry.")

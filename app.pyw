@@ -219,9 +219,9 @@ class TutorialDialog(tk.Toplevel):
             "The tool checks data/bgm and th06MD.dat before it lets you continue.",
         ),
         (
-            "2. Pick a slot and a song",
-            "Choose which Touhou track you want to replace, then drag in an MP3, WAV, FLAC, OGG, Opus, M4A, AAC or WMA file. "
-            "The song is automatically converted to the Nintendo Opus format used by the game.",
+            "2. Pick a soundtrack, slot and song",
+            "Choose New Classic OST or Classic OST first, then choose which Touhou track you want to replace. Drag in an MP3, WAV, FLAC, OGG, Opus, M4A, AAC or WMA file. "
+            "The tool updates the matching loop metadata for that soundtrack automatically.",
         ),
         (
             "3. Looping made simple",
@@ -315,12 +315,14 @@ class FriendlyApp(TkinterDnD.Tk):
 
         self.game_root = tk.StringVar()
         self.source_file = tk.StringVar()
+        self.music_bank = tk.StringVar(value="bgm")
         self.track_choice = tk.StringVar()
         self.loop_mode = tk.StringVar(value="whole")
         self.loop_start = tk.StringVar(value="0.000")
         self.status_text = tk.StringVar(value="Start by choosing your Touhou 6 New Classic folder.")
         self.status_kind = "neutral"
         self.track_paths: dict[str, Path] = {}
+        self.bank_buttons: dict[str, tk.Button] = {}
         self.current_loop = None
         self.busy = False
 
@@ -409,10 +411,21 @@ class FriendlyApp(TkinterDnD.Tk):
         self.game_state = tk.Label(controls, text="Not selected", bg=CARD, fg=MUTED, font=("Segoe UI", 10))
         self.game_state.pack(side="right", pady=10)
 
-        track_card = self._card(row, "2", "Choose the music slot", "Pick the original Touhou track that your custom song will replace.")
+        track_card = self._card(row, "2", "Choose the soundtrack and slot", "Choose which version of the soundtrack you want to modify.")
         track_card.grid(row=0, column=1, sticky="nsew", padx=(9, 0))
+
+        bank_wrap = tk.Frame(track_card, bg=CARD)
+        bank_wrap.pack(fill="x", padx=20, pady=(8, 10))
+        bank_wrap.grid_columnconfigure(0, weight=1, uniform="bank")
+        bank_wrap.grid_columnconfigure(1, weight=1, uniform="bank")
+        self.bank_buttons["bgm"] = self._bank_button(bank_wrap, "bgm", "New Classic OST", "Remastered soundtrack")
+        self.bank_buttons["bgm"].grid(row=0, column=0, sticky="ew", padx=(0, 4))
+        self.bank_buttons["bgm2"] = self._bank_button(bank_wrap, "bgm2", "Classic OST", "Original soundtrack")
+        self.bank_buttons["bgm2"].grid(row=0, column=1, sticky="ew", padx=(4, 0))
+        self._refresh_bank_buttons()
+
         self.track_combo = ttk.Combobox(track_card, textvariable=self.track_choice, state="readonly", style="Friendly.TCombobox")
-        self.track_combo.pack(fill="x", padx=20, pady=(8, 10))
+        self.track_combo.pack(fill="x", padx=20, pady=(0, 10))
         self.track_combo.bind("<<ComboboxSelected>>", lambda _: self.on_track_selected())
         self.track_info = tk.Label(
             track_card,
@@ -569,6 +582,38 @@ class FriendlyApp(TkinterDnD.Tk):
             cursor="hand2",
         )
 
+    @staticmethod
+    def _bank_label(bank: str) -> str:
+        return "Classic OST" if bank == "bgm2" else "New Classic OST"
+
+    def _bank_button(self, parent: tk.Misc, bank: str, title: str, path_hint: str) -> tk.Button:
+        return tk.Button(
+            parent, text=f"{title}\n{path_hint}", command=lambda: self.set_music_bank(bank),
+            justify="center", font=("Segoe UI", 10, "bold"), relief="flat", bd=0,
+            padx=12, pady=9, cursor="hand2",
+        )
+
+    def _refresh_bank_buttons(self) -> None:
+        active = self.music_bank.get()
+        for bank, button in self.bank_buttons.items():
+            selected = bank == active
+            button.configure(
+                bg=ACCENT if selected else "#f1ebee", activebackground=ACCENT_HOVER if selected else "#e7dfe3",
+                fg="white" if selected else TEXT, activeforeground="white" if selected else TEXT,
+            )
+
+    def set_music_bank(self, bank: str) -> None:
+        if self.busy or bank not in {"bgm", "bgm2"} or self.music_bank.get() == bank:
+            return
+        self.music_bank.set(bank)
+        self._refresh_bank_buttons()
+        if self.game_root.get().strip():
+            self.scan_game(show_error=False)
+        else:
+            self.track_paths.clear(); self.track_combo["values"] = []; self.track_choice.set("")
+            self.current_loop = None
+            self.track_info.configure(text=f"{self._bank_label(bank)} selected. Choose the game folder first.", fg=MUTED)
+
     def _radio(self, parent: tk.Misc, value: str, title: str, subtitle: str) -> tk.Frame:
         frame = tk.Frame(parent, bg="#fbf8f9", highlightthickness=1, highlightbackground=BORDER)
         radio = tk.Radiobutton(
@@ -650,42 +695,31 @@ class FriendlyApp(TkinterDnD.Tk):
         self.audio_state.configure(text=path.name, fg=SUCCESS)
         self._set_status(f"Song selected: {path.name}. Choose a track slot, then replace it when ready.", "success")
 
-    def scan_game(self) -> None:
+    def scan_game(self, *, show_error: bool = True) -> None:
+        bank = self.music_bank.get()
         try:
             game = Path(self.game_root.get()).expanduser().resolve()
-            if not (game / "th06nc.exe").is_file():
-                raise ToolError("This folder does not contain th06nc.exe.")
-            bgm = game / "data" / "bgm"
-            if not bgm.is_dir():
-                raise ToolError("The game folder is missing data/bgm.")
+            if not (game / "th06nc.exe").is_file(): raise ToolError("This folder does not contain th06nc.exe.")
+            bgm = game / "data" / bank
+            if not bgm.is_dir(): raise ToolError(f"The game folder is missing data/{bank}.")
             tracks = sorted(bgm.glob("th06_*.opus"))
-            if not tracks:
-                raise ToolError("No Touhou BGM files were found in data/bgm.")
-            PosStore(game)
-
-            self.track_paths.clear()
-            labels: list[str] = []
+            if not tracks: raise ToolError(f"No Touhou BGM files were found in data/{bank}.")
+            PosStore(game, bank)
+            self.track_paths.clear(); labels = []
             for path in tracks:
-                number = parse_track_number(path.stem)
-                title = TRACK_TITLES.get(number or -1, "")
+                number = parse_track_number(path.stem); title = TRACK_TITLES.get(number or -1, "")
                 label = f"{path.stem}  —  {title}" if title else path.stem
-                labels.append(label)
-                self.track_paths[label] = path
-
-            self.track_combo["values"] = labels
-            self.track_choice.set(labels[0])
-            self.game_state.configure(text=f"✓ Game detected · {len(tracks)} tracks", fg=SUCCESS)
+                labels.append(label); self.track_paths[label] = path
+            self.track_combo["values"] = labels; self.track_choice.set(labels[0])
+            self.game_state.configure(text=f"✓ Game detected · {self._bank_label(bank)} · {len(tracks)} tracks", fg=SUCCESS)
             self.on_track_selected()
-            self._set_status("Game detected successfully. Now choose the music slot you want to replace.", "success")
+            self._set_status(f"{self._bank_label(bank)} selected. Choose the music slot you want to replace.", "success")
         except Exception as exc:
-            self.track_paths.clear()
-            self.track_combo["values"] = []
-            self.track_choice.set("")
-            self.current_loop = None
-            self.game_state.configure(text="Game not detected", fg="#a24343")
-            self.track_info.configure(text="Choose a valid game folder first.", fg=MUTED)
+            self.track_paths.clear(); self.track_combo["values"] = []; self.track_choice.set(""); self.current_loop = None
+            self.game_state.configure(text=f"{self._bank_label(bank)} unavailable", fg="#a24343")
+            self.track_info.configure(text=f"Could not load {self._bank_label(bank)}: {exc}", fg=MUTED)
             self._set_status(str(exc), "warning")
-            messagebox.showerror("Could not use this folder", str(exc), parent=self)
+            if show_error: messagebox.showerror("Could not use this folder", str(exc), parent=self)
 
     def selected_track(self) -> Path:
         track = self.track_paths.get(self.track_choice.get())
@@ -697,11 +731,13 @@ class FriendlyApp(TkinterDnD.Tk):
         try:
             game = Path(self.game_root.get()).expanduser().resolve()
             track = self.selected_track()
-            info = PosStore(game).read(track.stem)
+            bank = self.music_bank.get()
+            info = PosStore(game, bank).read(track.stem)
             self.current_loop = info
+            pos_name = f"{track.stem}{'o' if bank == 'bgm2' else ''}.pos"
             self.track_info.configure(
-                text=f"Current game loop: {info.start_seconds:.2f}s → {info.end_seconds:.2f}s\n"
-                     "Your replacement gets new loop timing automatically.",
+                text=f"{self._bank_label(bank)} loop: {info.start_seconds:.2f}s → {info.end_seconds:.2f}s\n"
+                     "Your replacement gets its own loop timing automatically.",
                 fg=MUTED,
             )
         except Exception as exc:
@@ -736,6 +772,7 @@ class FriendlyApp(TkinterDnD.Tk):
             return
         try:
             game = Path(self.game_root.get()).expanduser().resolve()
+            bank = self.music_bank.get()
             track = self.selected_track()
             source = Path(self.source_file.get()).expanduser().resolve()
             if not source.is_file():
@@ -749,7 +786,7 @@ class FriendlyApp(TkinterDnD.Tk):
         loop_copy = "the beginning of the song" if loop_start == 0 else f"{loop_start:.3f} seconds"
         if not messagebox.askyesno(
             "Replace this music?",
-            f"Replace {track.name} with:\n\n{source.name}\n\n"
+            f"Replace {self._bank_label(bank)} / {track.name} with:\n\n{source.name}\n\n"
             f"Loop from: {loop_copy}\n\n"
             "The original track and loop metadata will be backed up automatically.",
             parent=self,
@@ -759,13 +796,14 @@ class FriendlyApp(TkinterDnD.Tk):
         self.busy = True
         self.replace_button.configure(state="disabled")
         self.restore_button.configure(state="disabled")
+        for button in self.bank_buttons.values(): button.configure(state="disabled")
         self.progress.start(12)
         self._set_status("Converting your song to the format used by Touhou 6 NC…", "neutral")
-        threading.Thread(target=self._replace_worker, args=(game, track, source, loop_start), daemon=True).start()
+        threading.Thread(target=self._replace_worker, args=(game, bank, track, source, loop_start), daemon=True).start()
 
-    def _replace_worker(self, game: Path, track: Path, source: Path, start_seconds: float) -> None:
+    def _replace_worker(self, game: Path, bank: str, track: Path, source: Path, start_seconds: float) -> None:
         try:
-            store = PosStore(game)
+            store = PosStore(game, bank)
             with tempfile.TemporaryDirectory(prefix="th06nc_friendly_") as temp_dir:
                 temp_opus = Path(temp_dir) / track.name
                 frames, exact_samples, packet_samples, seconds, size = convert(source, temp_opus)
@@ -794,12 +832,13 @@ class FriendlyApp(TkinterDnD.Tk):
                         pass
                     raise
 
-            self.after(0, self._replace_success, track, source, start_pos, end_pos, seconds, size, frames)
+            self.after(0, self._replace_success, bank, track, source, start_pos, end_pos, seconds, size, frames)
         except Exception as exc:
             self.after(0, self._replace_failed, exc)
 
     def _replace_success(
         self,
+        bank: str,
         track: Path,
         source: Path,
         start_pos: int,
@@ -812,16 +851,17 @@ class FriendlyApp(TkinterDnD.Tk):
         self.progress.stop()
         self.replace_button.configure(state="normal")
         self.restore_button.configure(state="normal")
+        for button in self.bank_buttons.values(): button.configure(state="normal")
         self.on_track_selected()
         start_seconds = start_pos / POS_RATE
         end_seconds = end_pos / POS_RATE
         self._set_status(
-            f"✓ Done! {source.name} now replaces {track.name}. Loop: {start_seconds:.2f}s → {end_seconds:.2f}s.",
+            f"✓ Done! {source.name} now replaces {self._bank_label(bank)} / {track.name}. Loop: {start_seconds:.2f}s → {end_seconds:.2f}s.",
             "success",
         )
         messagebox.showinfo(
             "Music replaced successfully",
-            f"{source.name} is now installed as {track.name}.\n\n"
+            f"{source.name} is now installed as {self._bank_label(bank)} / {track.name}.\n\n"
             f"Song length: {seconds:.2f} seconds\n"
             f"Loop: {start_seconds:.2f}s → {end_seconds:.2f}s\n\n"
             "You can start the game and test it now.\n"
@@ -834,6 +874,7 @@ class FriendlyApp(TkinterDnD.Tk):
         self.progress.stop()
         self.replace_button.configure(state="normal")
         self.restore_button.configure(state="normal")
+        for button in self.bank_buttons.values(): button.configure(state="normal")
         self._set_status(f"Replacement failed: {exc}", "warning")
         messagebox.showerror(
             "The music was not replaced",
@@ -846,18 +887,19 @@ class FriendlyApp(TkinterDnD.Tk):
             return
         try:
             game = Path(self.game_root.get()).expanduser().resolve()
+            bank = self.music_bank.get()
             track = self.selected_track()
             opus_backup = track.with_suffix(track.suffix + ".original.bak")
             if not opus_backup.is_file():
                 raise ToolError("There is no original backup for this slot yet.")
             if not messagebox.askyesno(
                 "Restore original music?",
-                f"Restore the original {track.name} and its original loop timing?",
+                f"Restore the original {self._bank_label(bank)} / {track.name} and its original loop timing?",
                 parent=self,
             ):
                 return
 
-            store = PosStore(game)
+            store = PosStore(game, bank)
             current_opus = track.read_bytes()
             current_loop = store.read(track.stem)
             try:
@@ -872,8 +914,8 @@ class FriendlyApp(TkinterDnD.Tk):
                 raise
 
             self.on_track_selected()
-            self._set_status(f"✓ Restored the original {track.name}.", "success")
-            messagebox.showinfo("Original restored", f"{track.name} is back to its original audio and loop timing.", parent=self)
+            self._set_status(f"✓ Restored the original {self._bank_label(bank)} / {track.name}.", "success")
+            messagebox.showinfo("Original restored", f"{self._bank_label(bank)} / {track.name} is back to its original audio and loop timing.", parent=self)
         except Exception as exc:
             self._set_status(f"Restore failed: {exc}", "warning")
             messagebox.showerror("Could not restore the track", str(exc), parent=self)

@@ -1,0 +1,48 @@
+name: Validate Windows app
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        shell: pwsh
+        run: |
+          python -m pip install --disable-pip-version-check -q --upgrade pip
+          python -m pip install --disable-pip-version-check -q -r requirements.txt pyinstaller
+
+      - name: Compile Python sources
+        shell: pwsh
+        run: |
+          python -m py_compile app.pyw core.py runtime_bootstrap.py dialogs.py ui_common.py ui_layout.py ui_actions.py
+
+      - name: Build standalone executable
+        shell: pwsh
+        run: |
+          python -m PyInstaller `
+            --noconfirm `
+            --clean `
+            --onefile `
+            --windowed `
+            --name "Touhou 6 NC Music Replacer" `
+            --collect-all tkinterdnd2 `
+            --collect-all imageio_ffmpeg `
+            app.pyw
+
+          if (!(Test-Path "dist\Touhou 6 NC Music Replacer.exe")) {
+            throw "PyInstaller did not produce the expected executable."
+          }

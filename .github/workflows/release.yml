@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: Release version (for example v1.1.1)
+        description: Release version (for example v1.2.1)
         required: true
-        default: v1.1.0
+        default: v1.2.0
   push:
     branches:
       - main
@@ -18,7 +18,7 @@ jobs:
   build-release:
     runs-on: windows-latest
     env:
-      RELEASE_VERSION: ${{ github.event_name == 'workflow_dispatch' && inputs.version || 'v1.1.0' }}
+      RELEASE_VERSION: ${{ github.event_name == 'workflow_dispatch' && inputs.version || 'v1.2.0' }}
 
     steps:
       - name: Check out source
@@ -77,8 +77,7 @@ jobs:
                   if not source.is_file():
                       continue
                   copied += 1
-                  destination = out / f"{prefix}_{copied}_{source.name}"
-                  shutil.copy2(source, destination)
+                  shutil.copy2(source, out / f"{prefix}_{copied}_{source.name}")
 
           copy_distribution_notices("imageio-ffmpeg", "IMAGEIO_FFMPEG")
           copy_distribution_notices("tkinterdnd2", "TKINTERDND2")
@@ -100,8 +99,7 @@ jobs:
               if not root.is_dir():
                   continue
               for source in root.rglob("license.terms"):
-                  key = source.read_bytes()
-                  digest = hashlib.sha256(key).hexdigest()
+                  digest = hashlib.sha256(source.read_bytes()).hexdigest()
                   if digest in seen:
                       continue
                   seen.add(digest)
@@ -152,8 +150,6 @@ jobs:
 
           Copy-Item THIRD_PARTY_NOTICES.md third_party_licenses\THIRD_PARTY_NOTICES.md -Force
           Compress-Archive -Path third_party_licenses\* -DestinationPath THIRD_PARTY_LICENSES.zip -Force
-          Write-Host "--- Bundled component report ---"
-          Get-Content BUNDLED_COMPONENTS.txt
 
       - name: Build standalone executable
         if: steps.release.outputs.exists != 'true'
@@ -177,6 +173,16 @@ jobs:
           $hash = (Get-FileHash $exe -Algorithm SHA256).Hash
           @"
           Standalone Windows build. No Python installation is required.
+
+          New in v1.2.0:
+          - Clearer drag-and-drop hover, accepted and invalid-file feedback.
+          - Stronger in-page success feedback after replacing music.
+          - Added a Rights & notices dialog with fan-project and rights-holder information.
+          - Fixed mouse-wheel behavior so scrolling the soundtrack list does not also scroll the page.
+          - More compact, responsive layout for smaller windows.
+          - Internal UI/runtime cleanup for easier maintenance.
+
+          Existing New Classic OST / Classic OST selection, loop metadata handling, backups and Restore Original behavior are preserved.
 
           FFmpeg and drag-and-drop support are bundled inside the executable.
 
@@ -202,7 +208,8 @@ jobs:
             "THIRD_PARTY_LICENSES.zip" `
             --target $env:GITHUB_SHA `
             --title "Touhou 6 NC Music Replacer $env:RELEASE_VERSION" `
-            --notes-file RELEASE_NOTES.md
+            --notes-file RELEASE_NOTES.md `
+            --latest
 
       - name: Add legal notices to existing release
         if: steps.release.outputs.exists == 'true'

@@ -152,6 +152,8 @@ jobs:
 
           Copy-Item THIRD_PARTY_NOTICES.md third_party_licenses\THIRD_PARTY_NOTICES.md -Force
           Compress-Archive -Path third_party_licenses\* -DestinationPath THIRD_PARTY_LICENSES.zip -Force
+          Write-Host "--- Bundled component report ---"
+          Get-Content BUNDLED_COMPONENTS.txt
 
       - name: Prepare standalone mode
         if: steps.release.outputs.exists != 'true'
@@ -233,5 +235,6 @@ jobs:
           $body = gh release view $env:RELEASE_VERSION --json body --jq .body
           if ($body -notmatch "THIRD_PARTY_NOTICES.md") {
             $body = $body + "`n`nLegal, attribution and third-party license material is attached as THIRD_PARTY_NOTICES.md, BUNDLED_COMPONENTS.txt and THIRD_PARTY_LICENSES.zip."
-            gh release edit $env:RELEASE_VERSION --notes $body
+            Set-Content -Path EXISTING_RELEASE_NOTES.md -Value $body -Encoding utf8
+            gh release edit $env:RELEASE_VERSION --notes-file EXISTING_RELEASE_NOTES.md
           }

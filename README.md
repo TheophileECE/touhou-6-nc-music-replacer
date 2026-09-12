@@ -1,31 +1,37 @@
 # Touhou 6 NC Music Replacer
 
-A small Windows tool for replacing music in **Touhou 6 New Classic** without breaking the game's loop timing.
+A friendly Windows tool for replacing music in **Touhou 6 New Classic** without breaking the game's loop timing.
 
-The app converts common audio files to the Nintendo Opus format used by the game and updates the matching loop metadata in `th06MD.dat` automatically.
+It converts common audio files to the Nintendo Opus format used by the game and updates the matching loop metadata in `th06MD.dat` automatically.
+
+## Download
+
+For normal use, download **`Touhou 6 NC Music Replacer.exe`** from the [latest release](https://github.com/TheophileECE/touhou-6-nc-music-replacer/releases/latest).
+
+No Python installation is required for the release build.
 
 ## Use
 
-1. Download or clone this repository.
-2. Install **Python 3** from [python.org](https://www.python.org/) and enable **Add Python to PATH** during installation.
-3. Double-click **`Launch Touhou 6 NC Music Replacer.vbs`**.
-4. Choose or drag in your game folder, select a music slot, then drag in your replacement song.
-5. Leave **Loop the whole song** selected unless you specifically want a non-looping intro.
+1. Run **`Touhou 6 NC Music Replacer.exe`**.
+2. Choose or drag in the folder containing `th06nc.exe`.
+3. Pick the music slot to replace.
+4. Drag in your replacement song.
+5. Leave **Loop the whole song** selected unless you want a non-repeating intro.
 6. Click **Replace Music**.
 
-The first launch creates a private `.venv` next to the tool and installs the two runtime dependencies. No terminal window is shown.
-
-## Safety
-
-The first time a track is replaced, the app keeps original backups using the `.original.bak` suffix. **Restore Original** restores both the original Opus file and its loop metadata.
-
-The repository intentionally contains **no Touhou game files, music, executables, or archives**.
+The first replacement of a slot creates `.original.bak` backups. **Restore Original** restores both the original Opus file and its original loop timing.
 
 ## Supported input
 
 MP3, WAV, FLAC, OGG, Opus, M4A, AAC and WMA.
 
-## Notes
+## Source version
+
+Developers can clone the repository, install Python 3, and run **`Launch Touhou 6 NC Music Replacer.vbs`**. The launcher creates a local `.venv` automatically.
+
+The repository intentionally contains **no Touhou game files, music, executables, or archives**.
+
+## Disclaimer
 
 This tool was built specifically around the file layout and loop metadata used by Touhou 6 New Classic. Back up your game installation before modding it.
 

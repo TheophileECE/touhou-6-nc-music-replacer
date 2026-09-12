@@ -1,0 +1,30 @@
+# Local runtime
+.venv/
+__pycache__/
+*.py[cod]
+
+# Game files and backups
+*.exe
+*.dll
+*.dat
+*.opus
+*.pos
+*.original.bak
+
+# User audio
+*.mp3
+*.wav
+*.flac
+*.ogg
+*.m4a
+*.aac
+*.wma
+
+# Build/editor noise
+build/
+dist/
+*.egg-info/
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
